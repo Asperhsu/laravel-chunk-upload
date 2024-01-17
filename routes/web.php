@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -14,3 +16,6 @@
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('upload', 'UploadController@index')->name('upload.index');
+Route::post('upload', 'UploadController@store')->name('upload.store');
