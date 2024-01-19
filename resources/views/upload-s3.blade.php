@@ -33,8 +33,6 @@
                 </div>
 
                 <div class="card-footer p-4" style="display: none">
-                    <img id="imagePreview" src="" style="width: 100%; height: auto; display: none" alt="img"/>
-                    <video id="videoPreview" src="" controls style="width: 100%; height: auto; display: none"></video>
                     <div id="response"></div>
                 </div>
             </div>
@@ -45,10 +43,10 @@
 <script type="text/javascript">
     let browseFile = $('#browseFile');
     let resumable = new Resumable({
-        target: '{{ route('upload.store') }}',
+        target: '{{ route('upload.s3') }}',
         query: {_token: '{{ csrf_token() }}'},
         // fileType: ['png', 'jpg', 'jpeg', 'mp4'],
-        chunkSize: 2 * 1024 * 1024, // default is 1*1024*1024, this should be less than your maximum limit in php.ini
+        chunkSize: 1.5 * 1024 * 1024, // default is 1*1024*1024, this should be less than your maximum limit in php.ini
         // simultaneousUploads: 1,
         headers: {
             'Accept': 'application/json'
@@ -60,27 +58,21 @@
     resumable.assignBrowse(browseFile[0]);
 
     resumable.on('fileAdded', function (file) { // trigger when file picked
+        console.log('fileAdded');
         showProgress();
         resumable.upload() // to actually start uploading.
     });
 
     resumable.on('fileProgress', function (file) { // trigger when file progress update
+        console.log('fileProgress', file);
         updateProgress(Math.floor(file.progress() * 100));
     });
 
     resumable.on('fileSuccess', function (file, response) { // trigger when file upload complete
+        console.log('fileSuccess');
         response = JSON.parse(response)
 
-        if (response.mime_type.includes("image")) {
-            $('#imagePreview').attr('src', response.path + '/' + response.name).show();
-        }
-
-        if (response.mime_type.includes("video")) {
-            $('#videoPreview').attr('src', response.path + '/' + response.name).show();
-        }
-
-        console.log('success', response);
-        $("#response").text(JSON.stringify(response, null, 4))
+        $("#response").text(JSON.stringify(response, null, 4));
 
         $('.card-footer').show();
         hideProgress();
@@ -88,8 +80,29 @@
 
     resumable.on('fileError', function (file, response) { // trigger when there is any error
         console.log('error', file, response);
-        // alert('file uploading error.')
+        // alert('file uploading error.');
     });
+
+
+    resumable.on('uploadStart', function () {
+        console.log('uploadStart');
+    });
+    resumable.on('complete', function () {
+        console.log('complete');
+    });
+    resumable.on('progress', function () {
+        console.log('progress');
+    });
+    resumable.on('chunkingStart', function (file) {
+        console.log('chunkingStart', file);
+    });
+    resumable.on('chunkingProgress', function (file, ratio) {
+        console.log('chunkingProgress', file, ratio);
+    });
+    resumable.on('chunkingComplete', function (file) {
+        console.log('chunkingProgress', file);
+    });
+
 
     let progress = $('.progress');
 

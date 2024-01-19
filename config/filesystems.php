@@ -1,7 +1,6 @@
 <?php
 
 return [
-
     /*
     |--------------------------------------------------------------------------
     | Default Filesystem Disk
@@ -42,7 +41,6 @@ return [
     */
 
     'disks' => [
-
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app'),
@@ -61,8 +59,20 @@ return [
             'secret' => env('AWS_SECRET'),
             'region' => env('AWS_REGION'),
             'bucket' => env('AWS_BUCKET'),
+
+            'root' => 'l55',
+            'url' => null,
         ],
+        'minio' => [
+            'driver' => 's3',
+            'key' => env('AWS_KEY'),
+            'secret' => env('AWS_SECRET'),
+            'region' => env('AWS_REGION'),
+            'bucket' => env('AWS_BUCKET'),
 
+            'endpoint' => 'http://minio.test',
+            'root' => 'l55',
+            'url' => null,
+        ],
     ],
-
 ];

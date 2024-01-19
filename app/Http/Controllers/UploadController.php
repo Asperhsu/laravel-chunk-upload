@@ -2,20 +2,50 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
-use Pion\Laravel\ChunkUpload\Handler\HandlerFactory;
 use Pion\Laravel\ChunkUpload\Receiver\FileReceiver;
+use Pion\Laravel\ChunkUpload\Handler\HandlerFactory;
 use Pion\Laravel\ChunkUpload\Exceptions\UploadMissingFileException;
 use Pion\Laravel\ChunkUpload\Exceptions\UploadFailedException;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class UploadController extends Controller
 {
     public function index()
     {
-        return view('upload');
+        $fs = \Storage::disk('s3');
+        $driver = $fs->getDriver();
+        $adapter = $driver->getAdapter();
+        $client = $adapter->getClient();
+
+        $key = 'my-file';
+        $result = $client->createMultipartUpload([
+            'Bucket' => $adapter->getBucket(),
+            'Key' => $key,
+        ]);
+        $uploadId = $result->get('UploadId');
+
+        return view('upload', compact('key', 'uploadId'));
+    }
+
+    public function singature(Request $request)
+    {
+        $fs = \Storage::disk('s3');
+        $driver = $fs->getDriver();
+        $adapter = $driver->getAdapter();
+        $client = $adapter->getClient();
+
+        $cmd = $client->getCommand('UploadPart', [
+            'Bucket' => $adapter->getBucket(),
+            'Key' => $request->query('key'),
+            'UploadId' => $request->query('uploadId'),
+            'PartNumber' => $request->query('resumableChunkNumber', 1),
+        ]);
+        $request = $client->createPresignedRequest($cmd, '+20 minutes');
+        $presignedUrl = (string)$request->getUri();
+        return $presignedUrl;
     }
 
     /**
