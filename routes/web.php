@@ -25,13 +25,14 @@ Route::get('upload-s3', function () {
     return view('upload-s3');
 })->name('upload.s3');
 Route::post('upload-s3', function (Request $request) {
-    $fileInfo = pathinfo($request->query('resumableFilename'));
-    $key = sprintf(
-        '%s_%s.%s',
-        $fileInfo['filename'],
-        md5($request->query('resumableIdentifier')),
-        $fileInfo['extension']
-    );
+    // $fileInfo = pathinfo($request->query('resumableFilename'));
+    // $key = sprintf(
+    //     '%s_%s.%s',
+    //     $fileInfo['filename'],
+    //     md5($request->query('resumableIdentifier')),
+    //     $fileInfo['extension']
+    // );
+    $key = $request->query('Key');
     logger('upload', ['key' => $key]);
 
     $result = resolve(UploaderFactory::class)
@@ -40,6 +41,15 @@ Route::post('upload-s3', function (Request $request) {
         ->handle();
     return response()->json($result);
 })->name('upload.s3');
+
+Route::post('uploaded-s3', function (Request $request) {
+    $key = $request->query('Key');
+    $result = resolve(UploaderFactory::class)
+        ->makeForDisk('s3')
+        ->setKey($key)
+        ->compelete();
+    return response()->json($result);
+})->name('upload.s3.compelete');
 
 // Route::get('upload', 'UploadController@index')->name('upload.index');
 // Route::post('upload', 'UploadController@store')->name('upload.store');

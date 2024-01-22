@@ -10,7 +10,8 @@
 
     <title>Resumablejs + Laravel Chunk Upload</title>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/resumable.js/1.1.0/resumable.min.js"></script>
+    {{-- <script src="https://cdnjs.cloudflare.com/ajax/libs/resumable.js/1.1.0/resumable.min.js"></script> --}}
+    <script src="{{ asset('js/resumable.js') }}"></script>
     <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
 </head>
 <body>
@@ -46,8 +47,8 @@
         target: '{{ route('upload.s3') }}',
         query: {_token: '{{ csrf_token() }}'},
         // fileType: ['png', 'jpg', 'jpeg', 'mp4'],
-        chunkSize: 1.5 * 1024 * 1024, // default is 1*1024*1024, this should be less than your maximum limit in php.ini
-        // simultaneousUploads: 1,
+        chunkSize: 5 * 1024 * 1024, // s3 min part 5MB
+        forceChunkSize: true,
         headers: {
             'Accept': 'application/json'
         },
@@ -58,49 +59,53 @@
     resumable.assignBrowse(browseFile[0]);
 
     resumable.on('fileAdded', function (file) { // trigger when file picked
-        console.log('fileAdded');
+        file.parts = [];
+
+        resumable.opts.query.Key = (function () {
+            let [basename, ext] = file.fileName.split('.');
+            return `${basename}-${Date.now()}.${ext}`;
+        })();
+
         showProgress();
-        resumable.upload() // to actually start uploading.
+        // resumable.upload() // to actually start uploading.
     });
 
-    resumable.on('fileProgress', function (file) { // trigger when file progress update
-        console.log('fileProgress', file);
+    resumable.on('chunkingComplete', function (file) {
+        console.log(file.chunks);
+    });
+
+    resumable.on('fileProgress', function (file, message) { // trigger when file progress update
+        if (message && (file.chunks.length > 1)) {
+            message = JSON.parse(message);
+            file.parts.push(message.part);
+        }
+
         updateProgress(Math.floor(file.progress() * 100));
     });
 
-    resumable.on('fileSuccess', function (file, response) { // trigger when file upload complete
-        console.log('fileSuccess');
-        response = JSON.parse(response)
-
-        $("#response").text(JSON.stringify(response, null, 4));
+    resumable.on('fileSuccess', async function (file, message) { // trigger when file upload complete
+        if ((file.chunks.length > 1) && (file.chunks.length == file.parts.length)) {
+            let url = '{{ route('upload.s3.compelete') }}?' + new URLSearchParams(resumable.opts.query);
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({parts: file.parts}),
+            });
+            $("#response").text(response);
+        } else {
+            $("#response").text(JSON.stringify(message, null, 4));
+        }
 
         $('.card-footer').show();
         hideProgress();
     });
 
-    resumable.on('fileError', function (file, response) { // trigger when there is any error
-        console.log('error', file, response);
+    resumable.on('fileError', function (file, message) { // trigger when there is any error
+        console.log('error', file, message);
         // alert('file uploading error.');
-    });
-
-
-    resumable.on('uploadStart', function () {
-        console.log('uploadStart');
-    });
-    resumable.on('complete', function () {
-        console.log('complete');
-    });
-    resumable.on('progress', function () {
-        console.log('progress');
-    });
-    resumable.on('chunkingStart', function (file) {
-        console.log('chunkingStart', file);
-    });
-    resumable.on('chunkingProgress', function (file, ratio) {
-        console.log('chunkingProgress', file, ratio);
-    });
-    resumable.on('chunkingComplete', function (file) {
-        console.log('chunkingProgress', file);
     });
 
 

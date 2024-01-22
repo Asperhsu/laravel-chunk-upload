@@ -19,7 +19,6 @@ class S3Uploader extends AbstractUploader
     protected $bucket;
     protected $currentChunk;
     protected $totalChunk;
-    protected $finishChunk = 0;
 
     protected $Key;
     protected $UploadId;
@@ -62,30 +61,43 @@ class S3Uploader extends AbstractUploader
 
 
         $file = $this->getProtectedValue($receiver, 'file');
-        $this->uploadPartToS3($file);
+        $result = $this->uploadPartToS3($file);
         logger('uploadPart', [
-            'parts' => $this->getParts(),
             'getRealPath' => $file->getRealPath(),
             'size' => $file->getFileInfo()->getSize(),
+            'result' => $result,
+            'uploadId' => $this->getUploadId(),
+        ]);
+        return [
+            'status' => true,
+            'part' => $result,
+        ];
+    }
+
+    public function compelete()
+    {
+        $request = request();
+        $client = $this->getClient();
+        $parts = collect($request->input('parts'))->sortBy('PartNumber')->values()->toArray();
+
+        logger('compelete', [
+            'uploadId' => $this->getUploadId(),
+            'parts' => $parts,
         ]);
 
-        if ($this->finishChunk == $this->totalChunk) {
-            logger('compelete', [
-                //
-            ]);
-            $name = $file->getClientOriginalName();
-            $mime = str_replace('/', '-', $file->getMimeType());
-            $result = $this->compeleteUpload();
-            return [
-                'path' => $result['Location'],
-                'name' => $name,
-                'mime_type' => $mime,
-            ];
-        }
+        $result = $client->completeMultipartUpload([
+            'Bucket' => $this->getBucket(),
+            'Key' => $this->getKey(),
+            'MultipartUpload' => [
+                'Parts' => $parts,
+            ],
+            'UploadId' => $this->getUploadId(),
+        ]);
+        logger('compeleteUpload after', Arr::wrap($result));
 
         return [
-            "done" => ceil($this->finishChunk / $this->totalChunk * 100),
-            'status' => true
+            'status' => true,
+            'path' => $result['Location'],
         ];
     }
 
@@ -191,63 +203,11 @@ class S3Uploader extends AbstractUploader
             'PartNumber' => $this->currentChunk,
             'Body'       => fopen($file->getRealPath(), 'rb'),
         ]);
-        logger('uploadPartToS3', [
-            $result['ETag'],
-            $this->currentChunk,
-        ]);
-        $this->pushPart($result['ETag'], $this->currentChunk);
-    }
 
-    public function compeleteUpload()
-    {
-        $client = $this->getClient();
-        logger('compeleteUpload before', $this->getParts());
-
-        $result = $client->completeMultipartUpload([
-            'Bucket' => $this->getBucket(), // REQUIRED
-            // 'ChecksumCRC32' => '<string>',
-            // 'ChecksumCRC32C' => '<string>',
-            // 'ChecksumSHA1' => '<string>',
-            // 'ChecksumSHA256' => '<string>',
-            // 'ExpectedBucketOwner' => '<string>',
-            'Key' => $this->getKey(), // REQUIRED
-            'MultipartUpload' => [
-                'Parts' => $this->getParts(),
-            ],
-            // 'RequestPayer' => 'requester',
-            // 'SSECustomerAlgorithm' => '<string>',
-            // 'SSECustomerKey' => '<string>',
-            // 'SSECustomerKeyMD5' => '<string>',
-            'UploadId' => $this->getUploadId(), // REQUIRED
-        ]);
-
-        logger('compeleteUpload after', Arr::wrap($result));
-
-        return $result;
-    }
-
-    protected function pushPart(string $ETag, int $partNumber)
-    {
-        $sessionKey = $this->getSessionKey('parts');
-        $parts = collect(session()->get($sessionKey));
-
-        if (!$parts->contains('PartNumber', $partNumber)) {
-            $parts->push([
-                'ETag' => $ETag,
-                'PartNumber' => $partNumber,
-            ]);
-        }
-
-        $this->finishChunk = $parts->count();
-        session()->put($sessionKey, $parts->sortBy('PartNumber')->values()->toArray());
-
-        return $this;
-    }
-
-    protected function getParts()
-    {
-        $sessionKey = $this->getSessionKey('parts');
-        return session()->get($sessionKey) ?: [];
+        return [
+            'ETag' => $result['ETag'],
+            'PartNumber' => $this->currentChunk,
+        ];
     }
 
     protected function getProtectedValue($obj, $prop)
