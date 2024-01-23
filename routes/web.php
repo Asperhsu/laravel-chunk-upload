@@ -1,56 +1,23 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
-use App\Uploader\UploaderFactory;
-use Ramsey\Uuid\Uuid;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('upload-local', function () {
-    return view('upload-local');
-})->name('upload.local');
-Route::post('upload-local', function () {
-    $result = resolve(UploaderFactory::class)->makeForDisk('local')->handle();
-    return response()->json($result);
-})->name('upload.local');
+Route::prefix('upload/local')
+    ->name('upload.local.')
+    ->group(function () {
+        Route::get('/', 'UploadLocalController@index')->name('index');
+        Route::post('/', 'UploadLocalController@store')->name('store');
+    });
 
-Route::get('upload-s3', function () {
-    // Uuid
-    // $key = 'my-file';
-    // $uploadId = resolve(UploaderFactory::class)->makeForDisk('s3')->requestUploadId();
-
-    return view('upload-s3');
-})->name('upload.s3');
-Route::post('upload-s3', function (Request $request) {
-    // $fileInfo = pathinfo($request->query('resumableFilename'));
-    // $key = sprintf(
-    //     '%s_%s.%s',
-    //     $fileInfo['filename'],
-    //     md5($request->query('resumableIdentifier')),
-    //     $fileInfo['extension']
-    // );
-    $key = $request->query('Key');
-    logger('upload', ['key' => $key]);
-
-    $result = resolve(UploaderFactory::class)
-        ->makeForDisk('s3')
-        ->setKey($key)
-        ->handle();
-    return response()->json($result);
-})->name('upload.s3');
-
-Route::post('uploaded-s3', function (Request $request) {
-    $key = $request->query('Key');
-    $result = resolve(UploaderFactory::class)
-        ->makeForDisk('s3')
-        ->setKey($key)
-        ->compelete();
-    return response()->json($result);
-})->name('upload.s3.compelete');
-
-// Route::get('upload', 'UploadController@index')->name('upload.index');
-// Route::post('upload', 'UploadController@store')->name('upload.store');
-// Route::get('singature', 'UploadController@singature')->name('upload.singature');
+Route::prefix('upload/s3')
+    ->name('upload.s3.')
+    ->group(function () {
+        Route::get('/', 'UploadS3Controller@index')->name('index');
+        Route::post('/prepare', 'UploadS3Controller@prepare')->name('prepare');
+        Route::post('/', 'UploadS3Controller@store')->name('store');
+        Route::post('/complete', 'UploadS3Controller@complete')->name('complete');
+    });

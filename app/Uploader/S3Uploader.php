@@ -7,14 +7,11 @@ use Pion\Laravel\ChunkUpload\Receiver\FileReceiver;
 use Pion\Laravel\ChunkUpload\Handler\HandlerFactory;
 use Pion\Laravel\ChunkUpload\Handler\ChunksInRequestUploadHandler;
 use Pion\Laravel\ChunkUpload\Exceptions\UploadMissingFileException;
-use Illuminate\Support\Arr;
 use Illuminate\Http\UploadedFile;
 use Exception;
 
 class S3Uploader extends AbstractUploader
 {
-    const SESSION_KEY_PREFIX = 's3uploader';
-
     protected $client;
     protected $bucket;
     protected $currentChunk;
@@ -26,6 +23,7 @@ class S3Uploader extends AbstractUploader
     public function handle()
     {
         $this->getKey();    // check key is set
+        $this->getUploadId();    // check UploadId is set
 
         $request = request();
         $receiver = new FileReceiver("file", $request, HandlerFactory::classFromRequest($request));
@@ -39,11 +37,6 @@ class S3Uploader extends AbstractUploader
         $isChunkMode = is_a($handler, ChunksInRequestUploadHandler::class);
         $this->currentChunk = $handler->getCurrentChunk();
         $this->totalChunk = $handler->getTotalChunks();
-        // logger('initial ', [
-        //     'isChunkMode' => $isChunkMode,
-        //     'getCurrentChunk' => $handler->getCurrentChunk(),
-        //     'getTotalChunks' => $handler->getTotalChunks(),
-        // ]);
 
         // single file mode
         if (!$isChunkMode || ($isChunkMode && ($handler->getTotalChunks() == 1))) {
@@ -59,31 +52,19 @@ class S3Uploader extends AbstractUploader
             ];
         }
 
-
         $file = $this->getProtectedValue($receiver, 'file');
         $result = $this->uploadPartToS3($file);
-        logger('uploadPart', [
-            'getRealPath' => $file->getRealPath(),
-            'size' => $file->getFileInfo()->getSize(),
-            'result' => $result,
-            'uploadId' => $this->getUploadId(),
-        ]);
+
         return [
             'status' => true,
             'part' => $result,
         ];
     }
 
-    public function compelete()
+    public function complete(array $parts)
     {
-        $request = request();
         $client = $this->getClient();
-        $parts = collect($request->input('parts'))->sortBy('PartNumber')->values()->toArray();
-
-        logger('compelete', [
-            'uploadId' => $this->getUploadId(),
-            'parts' => $parts,
-        ]);
+        $parts = collect($parts)->sortBy('PartNumber')->values()->toArray();
 
         $result = $client->completeMultipartUpload([
             'Bucket' => $this->getBucket(),
@@ -93,7 +74,6 @@ class S3Uploader extends AbstractUploader
             ],
             'UploadId' => $this->getUploadId(),
         ]);
-        logger('compeleteUpload after', Arr::wrap($result));
 
         return [
             'status' => true,
@@ -103,7 +83,9 @@ class S3Uploader extends AbstractUploader
 
     public function setKey($key)
     {
-        $this->Key = $key;
+        $root = $this->getDiskConfig('root');
+
+        $this->Key = $root ? $root . '/' . $key : $key;
         return $this;
     }
 
@@ -115,28 +97,16 @@ class S3Uploader extends AbstractUploader
         return $this->Key;
     }
 
-    public function getSessionKey($keys)
+    public function setUploadId($id)
     {
-        $keys = is_array($keys) ? $keys : func_get_args();
-
-        return sprintf(
-            '%s-%s.%s',
-            static::SESSION_KEY_PREFIX,
-            md5($this->getKey()),
-            implode('.', $keys)
-        );
+        $this->UploadId = $id;
+        return $this;
     }
 
     public function getUploadId()
     {
         if (!$this->UploadId) {
-            $sessionKey = $this->getSessionKey('UploadId');
-            if (!($id = session($sessionKey))) {
-                $id = $this->requestUploadId();
-                session()->put($sessionKey, $id);
-            }
-
-            $this->UploadId = $id;
+            throw new Exception('UploadId invalid');
         }
 
         return $this->UploadId;
@@ -164,12 +134,12 @@ class S3Uploader extends AbstractUploader
         return $this->bucket;
     }
 
-    public function requestUploadId(string $key = null)
+    public function requestUploadId()
     {
         $client = $this->getClient();
         $result = $client->createMultipartUpload([
             'Bucket' => $this->getBucket(),
-            'Key' => $key ?: $this->getKey(),
+            'Key' => $this->getKey(),
         ]);
         return $result->get('UploadId');
     }

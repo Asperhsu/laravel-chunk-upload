@@ -2,6 +2,8 @@
 
 namespace App\Uploader;
 
+use Illuminate\Support\Arr;
+
 abstract class AbstractUploader
 {
     protected $disk;
@@ -14,6 +16,12 @@ abstract class AbstractUploader
     public function getDisk()
     {
         return $this->disk;
+    }
+
+    public function getDiskConfig($key = null, $default = null)
+    {
+        $config = config('filesystems.disks.' . $this->disk) ?: [];
+        return $key ? Arr::get($config, $key, $default) : $config;
     }
 
     abstract public function handle();

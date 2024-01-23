@@ -20,7 +20,7 @@
         <div class="col-md-8">
             <div class="card">
                 <div class="card-header text-center">
-                    <h5>Upload File</h5>
+                    <h5>Upload File To Local</h5>
                 </div>
 
                 <div class="card-body">
@@ -45,7 +45,7 @@
 <script type="text/javascript">
     let browseFile = $('#browseFile');
     let resumable = new Resumable({
-        target: '{{ route('upload.local') }}',
+        target: '{{ route('upload.local.store') }}',
         query: {_token: '{{ csrf_token() }}'},
         // fileType: ['png', 'jpg', 'jpeg', 'mp4'],
         chunkSize: 2 * 1024 * 1024, // default is 1*1024*1024, this should be less than your maximum limit in php.ini
