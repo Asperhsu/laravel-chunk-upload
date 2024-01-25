@@ -60,18 +60,7 @@ return [
             'region' => env('AWS_REGION'),
             'bucket' => env('AWS_BUCKET'),
 
-            'root' => 'l55',
-            'url' => null,
-        ],
-        'minio' => [
-            'driver' => 's3',
-            'key' => env('AWS_KEY'),
-            'secret' => env('AWS_SECRET'),
-            'region' => env('AWS_REGION'),
-            'bucket' => env('AWS_BUCKET'),
-
-            'endpoint' => 'http://minio.test',
-            'root' => 'l55',
+            'root' => 'chunk-upload',
             'url' => null,
         ],
     ],
